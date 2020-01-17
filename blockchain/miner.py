@@ -9,6 +9,12 @@ from timeit import default_timer as timer
 
 import random
 
+alphabet = 'abcdefghijklmnopqrstuvwxyz'
+
+def update_target():
+    r = requests.get(url=node + "/last_proof")
+    data = r.json()
+    return data.get('proof')
 
 def proof_of_work(last_proof):
     """
@@ -21,13 +27,29 @@ def proof_of_work(last_proof):
     """
 
     start = timer()
+    attempts = 0
 
     print("Searching for next proof")
-    proof = 0
-    #  TODO: Your code here
+    magnitude = 666
+    direction = -1
+    proof = magnitude
+    last_hash = hashlib.sha256(str(last_proof).encode()).hexdigest()
 
-    print("Proof found: " + str(proof) + " in " + str(timer() - start))
-    return proof
+    while True:
+        magnitude += random.randint(0, 99999)
+        proof = random.choice([1, -1]) * magnitude
+        guess = str(proof)
+        if valid_proof(last_hash, guess):
+            print("Proof found: " + str(proof) + " in " + str(timer() - start))
+            return proof
+        else:
+            attempts += 1
+            if attempts % 323456 == 0:
+                last_proof = update_target()
+                last_hash = hashlib.sha256(str(last_proof).encode()).hexdigest()
+                print('updated last_proof:', str(last_proof))
+            if attempts % 1234567 == 0:
+                print('attempts:', attempts, '\nlast try:', proof)
 
 
 def valid_proof(last_hash, proof):
@@ -40,7 +62,9 @@ def valid_proof(last_hash, proof):
     """
 
     # TODO: Your code here!
-    pass
+    encoded = proof.encode()
+    hashed = hashlib.sha256(encoded).hexdigest()
+    return last_hash[-6:] == hashed[:6]
 
 
 if __name__ == '__main__':
@@ -64,9 +88,9 @@ if __name__ == '__main__':
     # Run forever until interrupted
     while True:
         # Get the last proof from the server
-        r = requests.get(url=node + "/last_proof")
-        data = r.json()
-        new_proof = proof_of_work(data.get('proof'))
+        # r = requests.get(url=node + "/last_proof")
+        # data = r.json()
+        new_proof = proof_of_work(update_target())
 
         post_data = {"proof": new_proof,
                      "id": id}
@@ -76,5 +100,7 @@ if __name__ == '__main__':
         if data.get('message') == 'New Block Forged':
             coins_mined += 1
             print("Total coins mined: " + str(coins_mined))
+            with open('record', 'a') as f:
+                f.write(str(coins_mined))
         else:
             print(data.get('message'))
